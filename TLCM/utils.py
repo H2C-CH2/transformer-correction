@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal, Optional
 
 import torch
 from datasets import load_dataset
@@ -28,7 +30,6 @@ class Config:
     n_docs: int = 50
     batch_size: int = 1
 
-    # 4.1
     debug: bool = True
 
 
@@ -74,3 +75,38 @@ def get_tokens(bridge: TransformerBridge, cfg: Config) -> Int[Tensor, "n_docs se
         raise ValueError(f"No documents had >= {cfg.seq_len} tokens.")
 
     return torch.stack(token_seqs).to(cfg.device)
+
+
+# Saving and Loading Below
+def encode_model_name(repo: str) -> str:
+    return repo.replace("/", "__")
+
+
+def decode_model_name(name: str) -> str:
+    return name.replace("__", "/", 1)
+
+
+def make_path(src: str, cfg: Config) -> Path:
+    path = Path(
+        f"{src}/{cfg.experiment}/{encode_model_name(cfg.model_name)}{'.pt' if src == 'data' else '.png'}"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    return path
+
+
+def save_results(
+    result: Any, cfg: Config, extra_metadata: Optional[dict] = None
+) -> Path:
+    path = make_path("data", cfg)
+    metadata = {
+        "cfg": cfg,
+        "saved_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        **(extra_metadata or {}),
+    }
+    torch.save({"data": result, "metadata": metadata}, path)
+    return path
+
+
+def load_results(path: Path, map_location: str = "cpu") -> Any:
+    return torch.load(path, map_location=map_location, weights_only=False)

@@ -10,9 +10,8 @@ sys.path.append(
 )
 
 from diff import compute_tlcm
-from utils import Config, get_tokens, load_model
-
-# from graph import plot_4_1, plot_4_4
+from graph import plot_4_1
+from utils import Config, get_tokens, load_model, save_results
 
 
 def parse_args() -> Config:
@@ -35,12 +34,14 @@ def parse_args() -> Config:
     )
     parser.add_argument("--seqlen", type=int, default=128, help="seq len of prompts")
     parser.add_argument(
-        "--n_docs", type=int, default=50, help="Max amount of prompts of seqlen"
+        "--n_docs", type=int, default=50, help="Max number of prompts of seqlen"
     )
-    parser.add_argument("--batch", type=int, default=4, help="batch size")
+    parser.add_argument("--batch", type=int, default=4, help="Batch size")
 
-    parser.add_argument("--plot", type=bool, default=True)
-    parser.add_argument("--save", type=bool, default=True)
+    parser.add_argument(
+        "--plot", type=bool, default=True, help="Plot associated figures"
+    )
+    parser.add_argument("--save", type=bool, default=True, help="Save .pt file")
     args = parser.parse_args()
 
     return Config(
@@ -59,7 +60,6 @@ def parse_args() -> Config:
 
 def main() -> None:
     cfg = parse_args()
-
     torch.set_grad_enabled(False)
 
     bridge = load_model(cfg, revision=cfg.revision)
@@ -68,11 +68,9 @@ def main() -> None:
     results = compute_tlcm(bridge=bridge, cfg=cfg, tokens=all_tokens)
 
     if cfg.save:
-        os.makedirs("data", exist_ok=True)
-        torch.save(results, "data/4_1.pt")
-
+        save_results(results, cfg)
     if cfg.plot:
-        raise NotImplementedError("Next Commit")
+        plot_4_1(results, cfg, 0.2)
 
 
 if __name__ == "__main__":
