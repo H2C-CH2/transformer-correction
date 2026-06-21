@@ -1,0 +1,8 @@
+transformer-lens
+einops
+jaxtyping
+tqdm
+transformers
+datasets
+torch
+matplotlib
