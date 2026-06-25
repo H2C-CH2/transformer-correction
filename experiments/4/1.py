@@ -10,7 +10,7 @@ sys.path.append(
 )
 
 from diff import compute_tlcm
-from graph import plot_4_1
+from graph import plot_fig_1_A5
 from utils import Config, get_tokens, load_model, save_results
 
 
@@ -65,12 +65,14 @@ def main() -> None:
     bridge = load_model(cfg, revision=cfg.revision)
     all_tokens = get_tokens(bridge, cfg)
 
-    results = compute_tlcm(bridge=bridge, cfg=cfg, tokens=all_tokens)
+    results: Float[Tensor, "n_layers n_layers"] = compute_tlcm(
+        bridge=bridge, cfg=cfg, tokens=all_tokens
+    )[("layer", "layer")]
 
     if cfg.save:
         save_results(results, cfg)
     if cfg.plot:
-        plot_4_1(results, cfg, 0.2)
+        plot_fig_1_A5(res=[results], cfg=[cfg], clamp=0.2, file_name="fig1")
 
 
 if __name__ == "__main__":

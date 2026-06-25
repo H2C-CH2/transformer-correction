@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "TLCM"))
 
-from graph import plot_4_1
+from graph import plot_fig_1_A5
 from utils import load_results
 
 
@@ -16,16 +16,13 @@ def parse_args():
 
     # Plot by experiment
     parser.add_argument(
-        "--experiment",
+        "--exp",
         type=str,
         choices=["4.1", "4.2", "4.3", "4.4", "5.1", "5.2"],
         help="Experiment performed in paper",
     )
 
-    parser.add_argument(
-        "--path",
-        type=Path,
-    )
+    parser.add_argument("--path", type=Path, default=None)
     args = parser.parse_args()
     # assert figure and experiment align
 
@@ -35,11 +32,30 @@ def parse_args():
 def main():
     args = parse_args()
 
-    res = load_results(args.path, "cpu")
+    if args.path is None:
+        exp_dir = Path("data") / args.exp
 
-    match args.experiment:
+        if not exp_dir.exists():
+            raise FileNotFoundError(f"Experiment directory not found: {exp_dir}")
+
+        paths = sorted(exp_dir.rglob("*.pt"))
+
+        if not paths:
+            raise FileNotFoundError(f"No .pt files found in {exp_dir}")
+
+        results = [load_results(path, "cpu") for path in paths]
+
+    else:
+        results = [load_results(args.path, "cpu")]
+
+    match args.exp:
         case "4.1":
-            plot_4_1(res["data"], res["metadata"]["cfg"], clamp=0.2)
+            plot_fig_1_A5(
+                [r["data"] for r in results],
+                [r["metadata"]["cfg"] for r in results],
+                clamp=0.2,
+                file_name="exp1",
+            )
 
 
 if __name__ == "__main__":

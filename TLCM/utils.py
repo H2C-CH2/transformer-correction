@@ -16,14 +16,18 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 @dataclass(frozen=True)
 class Config:
     experiment: Literal["4.1", "4.2", "4.3", "4.4", "5.1", "5.2"]
-    model_name: str
-    revision: str
-    device: str
+    model_name: str = ""
+    revision: str | list[str] = ""
+    device: str = ""
 
-    save: bool
-    plot: bool
+    save: bool = True
+    plot: bool = True
 
-    run_both: bool
+    run_both: bool = False
+
+    layer: int | list[int] = -1
+    corrections: int = 0
+    range: tuple[float, float, float] = (0.1, 0.1, 0.1)
 
     # data loading
     seq_len: int = 128
@@ -86,9 +90,10 @@ def decode_model_name(name: str) -> str:
     return name.replace("__", "/", 1)
 
 
-def make_path(src: str, cfg: Config) -> Path:
+def make_path(src: str, cfg: Config, file_name: str = "") -> Path:
+
     path = Path(
-        f"{src}/{cfg.experiment}/{encode_model_name(cfg.model_name)}{'.pt' if src == 'data' else '.png'}"
+        f"{src}/{cfg.experiment}/{file_name if file_name != '' else encode_model_name(cfg.model_name)}{'.pt' if src == 'data' else '.png'}"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -98,7 +103,7 @@ def make_path(src: str, cfg: Config) -> Path:
 def save_results(
     result: Any, cfg: Config, extra_metadata: Optional[dict] = None
 ) -> Path:
-    path = make_path("data", cfg)
+    path = make_path("data", cfg, "")
     metadata = {
         "cfg": cfg,
         "saved_at": time.strftime("%Y-%m-%d %H:%M:%S"),
