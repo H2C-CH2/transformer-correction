@@ -9,6 +9,10 @@ from torch import Tensor
 from utils import Config, make_path
 
 
+def clean_name(name: str) -> str:
+    return name.split("/", 1)[-1].replace("-", " ")
+
+
 def plot_fig_1_A5(
     res: list[Float[Tensor, "n_layers n_layers"]],
     cfg: list[Config],
@@ -16,37 +20,44 @@ def plot_fig_1_A5(
     file_name: str,
 ) -> None:
     filename: Path = make_path("figures", cfg[0], file_name=file_name)
-
     assert len(res) == len(cfg)
     n = len(res)
     ncols = min(n, 4)
     nrows = math.ceil(n / ncols)
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols + 1, 6 * nrows))
-    axes = np.array(axes).flatten()
+    fig, axs = plt.subplots(
+        nrows,
+        ncols,
+        figsize=(3.2 * ncols, 3.2 * nrows),
+        constrained_layout=True,
+        squeeze=False,
+    )
 
-    images = []
+    axes = axs.ravel()
+
     for ax, tensor, c in zip(axes, res, cfg):
         data = tensor.cpu().numpy().clip(-clamp, clamp)
-        im = ax.imshow(data, vmin=-clamp, vmax=clamp, origin="upper")
-        images.append(im)
+        im = ax.pcolormesh(data, cmap="viridis", vmin=-clamp, vmax=clamp)
 
-        ax.set_title(c.model_name, color="white")
-        ax.xaxis.set_label_position("top")
+        ax.set_title(clean_name(c.model_name), pad=8)
         ax.xaxis.tick_top()
-        ax.tick_params(colors="white")
+        ax.invert_yaxis()
+        ax.set_aspect("equal", adjustable="box")
 
     for ax in axes[n:]:
-        ax.set_visible(False)
+        ax.axis("off")
 
-    cbar_ax, _ = make_axes(
-        axes[:n].tolist(), location="right", fraction=0.05, pad=0.03, shrink=0.8
+    fig.colorbar(
+        im,
+        ax=axes[:n],
+        location="right",
+        fraction=0.04,
+        pad=0.02,
     )
-    cbar_ax.tick_params(labelcolor="white")
-    fig.colorbar(images[0], cax=cbar_ax)
 
-    fig.subplots_adjust(right=0.85)
-    plt.savefig(filename, dpi=150, bbox_inches="tight", transparent=True)
-    plt.close(fig)
-
+    fig.savefig(
+        filename,
+        dpi=150,
+        transparent=False,
+    )
     print("Figure 1 / 5A saved to:", filename)
