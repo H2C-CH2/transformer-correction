@@ -6,19 +6,23 @@ from jaxtyping import Float, Int
 from torch import Tensor
 from tqdm import tqdm
 from transformer_lens.model_bridge import TransformerBridge
-from utils import Config
+
+from TLCM.utils import DataConfig, ExperimentConfig
 
 
 def self_cossim(
     x: Float[Tensor, "n_layers batch seq d_model"],
-) -> Float[Tensor, "batch n_layers n_layers"]:
-    """Cosine similarity of layer-wise contributions"""
+) -> Float[Tensor, "n_layers n_layers"]:
+    """Cosine similarity of same contributions"""
+
     seq_len = x.shape[-2]
 
     x_norm = x / x.norm(dim=-1, keepdim=True).clamp_min(1e-8)
 
     sim_sum = einops.einsum(x_norm, x_norm, "l1 b s d, l2 b s d -> b l1 l2")
-    return sim_sum / seq_len
+    sim_sum = sim_sum.mean(dim=0) / seq_len
+    sim_sum.fill_diagonal_(0.0)
+    return sim_sum
 
 
 def layer_diff(
@@ -50,9 +54,6 @@ def layer_diff(
     return torch.stack([resid_post[i] - resid_pre[i] for i in range(n_layers)])
 
 
-# def _tlcm_components(bridge, tokens, cfg):
-
-
 def _tlcm_layer(bridge, tokens, cfg):
     """Returns cosine similarities between layers' contributions"""
     accumulate = torch.zeros(
@@ -64,47 +65,25 @@ def _tlcm_layer(bridge, tokens, cfg):
         layer_contrib = layer_diff(bridge, batch)
         if cfg.debug:
             print("\nLayer contrib:", layer_contrib.shape)
-        accumulate += self_cossim(layer_contrib).mean(dim=0)
+        accumulate += self_cossim(layer_contrib)
 
     return {("layer", "layer"): accumulate / (len(tokens) // cfg.batch_size)}
 
 
 def compute_tlcm(
     bridge: TransformerBridge,
-    cfg: Config,
+    expcfg: ExperimentConfig,
+    dcfg: DataConfig,
     tokens: Int[Tensor, "n_docs seq"],
+    run_both: bool,
 ) -> dict[tuple[str, str], Float[Tensor, "n_layers n_layers"]]:
     """
     Returns mappings of pair-wise cosine similarity of layer/sublayer contributions
     to said pairs of layer/sublayer components
     """
 
-    if (cfg.experiment == "4.1" and cfg.run_both) or cfg.experiment == "4.4":
-        raise NotImplementedError("Later")
-        return _tlcm_components(bridge, tokens, cfg)
+    if (expcfg.experiment == "4.1" and run_both) or expcfg.experiment == "4.4":
+        raise NotImplementedError()
+        return _tlcm_components(bridge, tokens, dcfg, run_both)
     else:
-        return _tlcm_layer(bridge, tokens, cfg)
-
-
-# def resid_contrib_layer(
-# bridge: TransformerBridge,
-# tokens: Int[Tensor, "batch seq"],
-# target: int,
-# ) -> Float[Tensor, "n_layers batch seq d_model"]:
-# """Returns resid_pre and contribution of target layer"""
-# n_layers = bridge.cfg.n_layers
-# assert(target >= 0 and target < n_layers)
-
-# hook_names = {f"blocks.{i}.hook_out" for i in range(n_layers)}
-
-# _, cache = bridge.run_with_cache(
-#     tokens,
-#     names_filter=lambda name: name in hook_names,
-# )
-
-# resid_pre = [cache["blocks.0.hook_in"]] + [
-#     cache[f"blocks.{i}.hook_out"] for i in range(n_layers - 1)
-# ]
-# resid_post = [cache[f"blocks.{i}.hook_out"] for i in range(n_layers)]
-
-# return torch.stack([resid_post[i] - resid_pre[i] for i in range(n_layers)])
+        return _tlcm_layer(bridge, tokens, dcfg)

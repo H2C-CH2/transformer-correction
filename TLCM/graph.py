@@ -6,7 +6,8 @@ import numpy as np
 from jaxtyping import Float
 from matplotlib.colorbar import make_axes
 from torch import Tensor
-from utils import Config, make_path
+
+from TLCM.utils import DataConfig, ExperimentConfig, make_path
 
 
 def clean_name(name: str) -> str:
@@ -15,9 +16,9 @@ def clean_name(name: str) -> str:
 
 def plot_fig_1_A5(
     res: list[Float[Tensor, "n_layers n_layers"]],
-    cfg: list[Config],
+    cfg: list[ExperimentConfig],
     clamp: float,
-    file_name: str,
+    file_name: str = "",
 ) -> None:
     filename: Path = make_path("figures", cfg[0], file_name=file_name)
     assert len(res) == len(cfg)

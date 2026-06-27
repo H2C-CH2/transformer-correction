@@ -13,31 +13,26 @@ from transformer_lens.model_bridge import TransformerBridge
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
-@dataclass(frozen=True)
-class Config:
+@dataclass(frozen=True, kw_only=True)
+class ExperimentConfig:
     experiment: Literal["4.1", "4.2", "4.3", "4.4", "5.1", "5.2"]
-    model_name: str = ""
-    revision: str | list[str] = ""
-    device: str = ""
+    model_name: str
+    revision: str
+    device: str
 
-    save: bool = True
-    plot: bool = True
 
-    run_both: bool = False
-
-    layer: int | list[int] = -1
-    corrections: int = 0
-    range: tuple[float, float, float] = (0.1, 0.1, 0.1)
-
-    # data loading
-    seq_len: int = 128
-    n_docs: int = 50
-    batch_size: int = 1
-
+@dataclass(frozen=True, kw_only=True)
+class DataConfig:
+    seq_len: int
+    n_docs: int
+    batch_size: int
+    device: str
+    plot: bool
+    save: bool
     debug: bool = True
 
 
-def load_model(cfg: Config, revision: str = "main") -> TransformerBridge:
+def load_model(cfg: ExperimentConfig, revision: str = "main") -> TransformerBridge:
     """Load model (checkpoint) from HuggingFace and convert into a TransformerBridge"""
 
     # not entirely sure if TL directly allows for creating revisions, so this is the workaround
@@ -65,7 +60,7 @@ def load_model(cfg: Config, revision: str = "main") -> TransformerBridge:
     return bridge
 
 
-def get_tokens(bridge: TransformerBridge, cfg: Config) -> Int[Tensor, "n_docs seq"]:
+def get_tokens(bridge: TransformerBridge, cfg: DataConfig) -> Int[Tensor, "n_docs seq"]:
     dataset = load_dataset("Salesforce/wikitext", "wikitext-2-raw-v1", split="test")
     texts = [row["text"] for row in dataset if len(row["text"]) > 100][: cfg.n_docs]
 
@@ -90,7 +85,7 @@ def decode_model_name(name: str) -> str:
     return name.replace("__", "/", 1)
 
 
-def make_path(src: str, cfg: Config, file_name: str = "") -> Path:
+def make_path(src: str, cfg: ExperimentConfig, file_name: str = "") -> Path:
 
     path = Path(
         f"{src}/{cfg.experiment}/{file_name if file_name != '' else encode_model_name(cfg.model_name)}{'.pt' if src == 'data' else '.png'}"
@@ -101,7 +96,7 @@ def make_path(src: str, cfg: Config, file_name: str = "") -> Path:
 
 
 def save_results(
-    result: Any, cfg: Config, extra_metadata: Optional[dict] = None
+    result: Any, cfg: ExperimentConfig, extra_metadata: Optional[dict] = None
 ) -> Path:
     path = make_path("data", cfg, "")
     metadata = {
@@ -114,4 +109,22 @@ def save_results(
 
 
 def load_results(path: Path, map_location: str = "cpu") -> Any:
+    print("Loading data from:", path)
     return torch.load(path, map_location=map_location, weights_only=False)
+
+
+def get_experiment(args) -> Literal["4.1", "4.2", "4.3", "4.4", "5.1", "5.2"]:
+    if args.layer_contrib:
+        return "4.1"
+    elif args.emergence:
+        return "4.2"
+    elif args.token_act:
+        return "4.3"
+    elif args.sublayer_contrib:
+        return "4.4"
+    elif args.perturb:
+        return "5.1"
+    elif args.eigen:
+        return "5.2"
+    else:
+        raise NameError("Experiment not found")

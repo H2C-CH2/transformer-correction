@@ -1,12 +1,8 @@
 import argparse
-import os
-import sys
 from pathlib import Path
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "TLCM"))
-
-from graph import plot_fig_1_A5
-from utils import load_results
+from TLCM.graph import plot_fig_1_A5
+from TLCM.utils import load_results
 
 
 def parse_args():
