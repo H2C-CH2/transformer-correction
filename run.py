@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import replace
 
 import torch
 from jaxtyping import Float, Int
@@ -6,7 +7,7 @@ from torch import Tensor
 from transformer_lens.utilities.devices import get_device
 
 from TLCM.diff import compute_tlcm
-from TLCM.graph import plot_fig_1_A5
+from TLCM.graph import plot_cossims
 from TLCM.utils import (
     DataConfig,
     ExperimentConfig,
@@ -18,7 +19,7 @@ from TLCM.utils import (
 
 
 # Section 4.1
-def run_layer_contrib(expcfg: ExperimentConfig, dcfg: DataConfig, run_both: bool):
+def run_layer_contrib(run_both: bool, expcfg: ExperimentConfig, dcfg: DataConfig):
     bridge = load_model(expcfg, revision=expcfg.revision)
     all_tokens = get_tokens(bridge, dcfg)
 
@@ -29,7 +30,50 @@ def run_layer_contrib(expcfg: ExperimentConfig, dcfg: DataConfig, run_both: bool
     if dcfg.save:
         save_results(results, expcfg)
     if dcfg.plot:
-        plot_fig_1_A5(res=[results], cfg=[expcfg], clamp=0.2, file_name="fig1")
+        plot_cossims(res=[results], cfg=[expcfg], clamp=0.2, file_name="fig1")
+
+
+# Section 4.2
+def run_emergence(revisions: list[str], expcfg: ExperimentConfig, dcfg: DataConfig):
+    """
+    The expcfg in expcfgs should all be identical EXCEPT for the revision
+    """
+
+    expcfgs = [replace(expcfg, revision=rv) for rv in revisions]
+
+    bridge = load_model(expcfg, revision=expcfg.revision)
+    all_tokens = get_tokens(bridge, dcfg)
+
+    results: list[Float[Tensor, "n_layers n_layers"]] = [
+        compute_tlcm(
+            bridge=bridge, expcfg=expcfg, dcfg=dcfg, tokens=all_tokens, run_both=False
+        )[("layer", "layer")]
+    ]
+
+    for i in range(1, len(revisions)):
+        bridge = load_model(expcfgs[i], revision=expcfgs[i].revision)
+        results.append(
+            compute_tlcm(
+                bridge=bridge,
+                expcfg=expcfgs[i],
+                dcfg=dcfg,
+                tokens=all_tokens,
+                run_both=False,
+            )[("layer", "layer")]
+        )
+
+    if dcfg.save:
+        for i in range(len(expcfgs)):
+            save_results(results[i], expcfgs[i])
+
+    if dcfg.plot:
+        plot_cossims(
+            res=[r for r in results],
+            cfg=expcfgs,
+            clamp=0.2,
+            file_name="figA9",
+            title=[expcfg.revision for expcfg in expcfgs],
+        )
 
 
 def parse_args():
@@ -38,7 +82,7 @@ def parse_args():
     parser.add_argument(
         "--model", type=str, help="HuggingFace/TransformerLens model name"
     )
-    parser.add_argument("--ckpt", action="extend", nargs="+", default=["main"])
+    parser.add_argument("--ckpt", action="extend", nargs="+", default=[])
 
     # Experiments
     parser.add_argument("--layer_contrib", action="store_true")
@@ -47,9 +91,6 @@ def parse_args():
     parser.add_argument("--sublayer_contrib", action="store_true")
     parser.add_argument("--perturb", action="store_true")
     parser.add_argument("--eigen", action="store_true")
-
-    parser.add_argument("--save", action="store_true", default=True)
-    parser.add_argument("--plot", action="store_true", default=True)
 
     # Section 4.1
     parser.add_argument(
@@ -68,6 +109,9 @@ def parse_args():
     )
     parser.add_argument("--batch", type=int, default=4, help="Batch size")
 
+    parser.add_argument("--save", action="store_true", default=True)
+    parser.add_argument("--plot", action="store_true", default=True)
+
     return parser.parse_args()
 
 
@@ -77,9 +121,9 @@ def main() -> None:
     expcfg = ExperimentConfig(
         experiment=get_experiment(args),
         model_name=args.model,
-        revision=args.ckpt[0],
+        revision=args.ckpt[0] if len(args.ckpt) > 0 else "main",
         device=get_device(),
-    )  # for 4.2, we'll generate new expcfgs each time using a different index of revision
+    )
 
     dcfg = DataConfig(
         plot=args.plot,
@@ -96,7 +140,7 @@ def main() -> None:
         )
         run_layer_contrib(run_both=args.both, expcfg=expcfg, dcfg=dcfg)
     elif args.emergence:
-        raise NotImplementedError
+        run_emergence(revisions=args.ckpt, expcfg=expcfg, dcfg=dcfg)
     elif args.token_act:
         raise NotImplementedError
     elif args.sublayer_contrib:

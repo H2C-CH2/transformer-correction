@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-from TLCM.graph import plot_fig_1_A5
+from TLCM.graph import plot_cossims
 from TLCM.utils import load_results
 
 
@@ -18,39 +18,53 @@ def parse_args():
         help="Experiment performed in paper",
     )
 
-    parser.add_argument("--path", type=Path, default=None)
+    parser.add_argument("--paths", action="extend", nargs="+")
     args = parser.parse_args()
     # assert figure and experiment align
 
     return args
 
 
+def search_folders(exp: str):
+    exp_dir = Path("data") / exp
+
+    if not exp_dir.exists():
+        raise FileNotFoundError(f"Experiment directory not found: {exp_dir}")
+
+    paths = sorted(exp_dir.rglob("*.pt"))
+
+    if not paths:
+        raise FileNotFoundError(f"No .pt files found in {exp_dir}")
+
+    return [load_results(path, "cpu") for path in paths]
+
+
 def main():
     args = parse_args()
 
-    if args.path is None:
-        exp_dir = Path("data") / args.exp
-
-        if not exp_dir.exists():
-            raise FileNotFoundError(f"Experiment directory not found: {exp_dir}")
-
-        paths = sorted(exp_dir.rglob("*.pt"))
-
-        if not paths:
-            raise FileNotFoundError(f"No .pt files found in {exp_dir}")
-
-        results = [load_results(path, "cpu") for path in paths]
+    if args.paths is None:
+        results = search_folders(args.exp)
 
     else:
-        results = [load_results(args.path, "cpu")]
+        results = [load_results(path, "cpu") for path in args.paths]
 
     match args.exp:
         case "4.1":
-            plot_fig_1_A5(
+            # r["data"]: Float[Tensor, "n_layers n_layers"]
+            plot_cossims(
                 [r["data"] for r in results],
                 [r["metadata"]["cfg"] for r in results],
                 clamp=0.2,
-                file_name="exp1",
+                file_name="fig1",
+            )
+
+        case "4.2":
+            # r["data"]: Float[Tensor, "n_layers n_layers"]
+            plot_cossims(
+                [r["data"] for r in results],
+                [r["metadata"]["cfg"] for r in results],
+                clamp=0.2,
+                file_name="figA9",
             )
 
 
