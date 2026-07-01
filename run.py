@@ -39,7 +39,7 @@ def run_emergence(revisions: list[str], expcfg: ExperimentConfig, dcfg: DataConf
     The expcfg in expcfgs should all be identical EXCEPT for the revision
     """
 
-    expcfgs = [replace(expcfg, revision=rv) for rv in revisions]
+    expcfgs: list[ExperimentConfig] = [replace(expcfg, revision=rv) for rv in revisions]
 
     bridge = load_model(expcfg, revision=expcfg.revision)
     all_tokens = get_tokens(bridge, dcfg)
@@ -74,6 +74,39 @@ def run_emergence(revisions: list[str], expcfg: ExperimentConfig, dcfg: DataConf
             file_name="figA9",
             title=[expcfg.revision for expcfg in expcfgs],
         )
+
+
+# Section 4.4
+def run_sublayer_contrib(run_both: bool, expcfg: ExperimentConfig, dcfg: DataConfig):
+    bridge = load_model(expcfg, revision=expcfg.revision)
+    all_tokens = get_tokens(bridge, dcfg)
+
+    results: dict[tuple[str, str], Float[Tensor, "n_layers n_layers"]] = compute_tlcm(
+        bridge=bridge, expcfg=expcfg, dcfg=dcfg, tokens=all_tokens, run_both=run_both
+    )
+
+    if dcfg.save:
+        save_results(results, expcfg)
+    if dcfg.plot:
+        plot_cossims(
+            [results[("attn", "attn")], results[("mlp", "mlp")]],
+            cfg=[expcfg, expcfg],
+            clamp=0.3,
+            file_name="fig2a",
+            title=["$M_{attn}$", "$M_{mlp}$"],
+        )
+        plot_cossims(
+            [results[("attn", "mlp")]],
+            cfg=[expcfg],
+            clamp=0.3,
+            file_name="figA6",
+            title=["$M_{attn\\times MLP}$"],
+            axis_names=[("Attn Index", "MLP Index")],
+        )
+        if run_both:
+            plot_cossims(
+                [results[("layer", "layer")]], cfg=[expcfg], clamp=0.2, file_name="fig1"
+            )
 
 
 def parse_args():
@@ -140,11 +173,15 @@ def main() -> None:
         )
         run_layer_contrib(run_both=args.both, expcfg=expcfg, dcfg=dcfg)
     elif args.emergence:
+        print("Running Section 4.2 Experiment: TLCM emergence over model checkpoints")
         run_emergence(revisions=args.ckpt, expcfg=expcfg, dcfg=dcfg)
     elif args.token_act:
         raise NotImplementedError
     elif args.sublayer_contrib:
-        raise NotImplementedError
+        print(
+            "Running Section 4.4 Experiment: cosine similarity between sublayer contributions"
+        )
+        run_sublayer_contrib(run_both=args.both, expcfg=expcfg, dcfg=dcfg)
     elif args.perturb:
         raise NotImplementedError
     elif args.eigen:

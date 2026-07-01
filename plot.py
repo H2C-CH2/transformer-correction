@@ -50,9 +50,16 @@ def main():
 
     match args.exp:
         case "4.1":
-            # r["data"]: Float[Tensor, "n_layers n_layers"]
+            # r["data"]: Float[Tensor, "n_layers n_layers"] if from layer_contrib
+            # r["data"]: dict[tuple[str,str], Float[Tensor, "n_layers n_layers"]] if from sublayer_contrib
+
             plot_cossims(
-                [r["data"] for r in results],
+                [
+                    r["data"][("layer", "layer")]
+                    if isinstance(r["data"], dict)
+                    else r["data"]
+                    for r in results
+                ],
                 [r["metadata"]["cfg"] for r in results],
                 clamp=0.2,
                 file_name="fig1",
@@ -65,6 +72,28 @@ def main():
                 [r["metadata"]["cfg"] for r in results],
                 clamp=0.2,
                 file_name="figA9",
+            )
+
+        case "4.4":
+            assert len(results) == 1
+            # r["data"]: dict[tuple[str,str], Float[Tensor, "n_layers n_layers"]]
+            plot_cossims(
+                [
+                    results[0]["data"][("attn", "attn")],
+                    results[0]["data"][("mlp", "mlp")],
+                ],
+                cfg=[results[0]["metadata"]["cfg"]] * 2,
+                clamp=0.3,
+                file_name="fig2a",
+                title=["$M_{attn}$", "$M_{mlp}$"],
+            )
+            plot_cossims(
+                [results[0]["data"][("attn", "mlp")]],
+                cfg=[results[0]["metadata"]["cfg"]],
+                clamp=0.3,
+                file_name="figA6",
+                title=["$M_{attn\\times MLP}$"],
+                axis_names=[("Attn Index", "MLP Index")],
             )
 
 
